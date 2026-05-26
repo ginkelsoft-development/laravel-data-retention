@@ -1,0 +1,69 @@
+{
+  "name": "ginkelsoft/laravel-data-retention",
+  "description": "A Laravel package that enforces GDPR storage-limitation rules per Eloquent model by deleting or anonymizing expired records and writing a tamper-evident audit log.",
+  "keywords": [
+    "laravel",
+    "gdpr",
+    "avg",
+    "data-retention",
+    "storage-limitation",
+    "anonymize",
+    "compliance",
+    "audit-log",
+    "ginkelsoft"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Wietse van Ginkel",
+      "email": "info@ginkelsoft.com",
+      "homepage": "https://ginkelsoft.com",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "illuminate/support": "^11.0 || ^12.0 || ^13.0",
+    "illuminate/database": "^11.0 || ^12.0 || ^13.0",
+    "illuminate/console": "^11.0 || ^12.0 || ^13.0",
+    "nesbot/carbon": "^2.72 || ^3.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^9.0 || ^10.0 || ^11.0",
+    "pestphp/pest": "^3.0",
+    "pestphp/pest-plugin-laravel": "^3.0",
+    "phpstan/phpstan": "^2.0",
+    "laravel/pint": "^1.18"
+  },
+  "autoload": {
+    "psr-4": {
+      "Ginkelsoft\\DataRetention\\": "src/",
+      "Ginkelsoft\\DataRetention\\Database\\Factories\\": "database/factories/",
+      "Ginkelsoft\\DataRetention\\Database\\Seeders\\": "database/seeders/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Ginkelsoft\\DataRetention\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Ginkelsoft\\DataRetention\\DataRetentionServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/pest",
+    "analyse": "vendor/bin/phpstan analyse",
+    "format": "vendor/bin/pint"
+  },
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

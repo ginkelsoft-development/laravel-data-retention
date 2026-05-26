@@ -1,0 +1,8 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - tests/Models
+    excludePaths:
+        - vendor
+    treatPhpDocTypesAsCertain: false

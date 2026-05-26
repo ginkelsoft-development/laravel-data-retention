@@ -1,0 +1,43 @@
+# ------------------------------------------------------------
+# Laravel Package .gitignore
+# ------------------------------------------------------------
+
+# Composer dependencies
+/vendor/
+composer.lock
+
+# IDE & OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Environment & local config
+.env
+.env.*
+.phpunit.result.cache
+
+# Build / cache / temporary
+/storage/
+bootstrap/cache/
+coverage/
+*.cache
+*.log
+*.tmp
+
+# Testbench / PHPUnit artifacts
+.phpunit.cache/
+.phpunit.result.cache
+tests/_output/
+
+# Package build output
+/build/
+dist/
+*.zip
+
+# Local DBs
+database/*.sqlite
+*.sql
