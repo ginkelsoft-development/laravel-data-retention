@@ -317,6 +317,24 @@ vendor/bin/pint --test
 
 ---
 
+## Contributing
+
+Pull requests welcome — read [CONTRIBUTING.md](CONTRIBUTING.md) first. The
+scope of this package is intentionally narrow; sibling concerns (consent,
+subject-access, right-to-be-forgotten, breach registry) belong in separate
+modules, see the Roadmap above.
+
+## Security
+
+Found a vulnerability? **Do not open a public issue.** See
+[SECURITY.md](SECURITY.md) for the private reporting channel.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes per release.
+
+---
+
 ## License
 
 MIT License — see [LICENSE](LICENSE).
