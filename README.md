@@ -256,7 +256,7 @@ The factories (`Ginkelsoft\DataRetention\Database\Factories\{ClientFactory,Audit
 
 ## Framework Compatibility
 
-The CI matrix runs every valid PHP × Laravel combination on every push. Combinations that Laravel itself does not support (e.g. PHP 8.1 + Laravel 11) are omitted on purpose.
+The CI matrix runs every valid PHP × Laravel combination on every push. Combinations that Laravel itself does not support (e.g. PHP 8.2 + Laravel 13, since Laravel 13 requires PHP 8.3+) are omitted on purpose.
 
 | Laravel Version | Supported PHP Versions |
 | --------------- | ---------------------- |
