@@ -4,7 +4,7 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/ginkelsoft/laravel-data-retention.svg?style=flat-square)](https://packagist.org/packages/ginkelsoft/laravel-data-retention)
 [![License](https://img.shields.io/github/license/ginkelsoft-development/laravel-data-retention.svg?style=flat-square)](LICENSE.md)
 [![Laravel](https://img.shields.io/badge/Laravel-10--13-brightgreen?style=flat-square&logo=laravel)](https://laravel.com)
-[![PHP](https://img.shields.io/badge/PHP-8.1%20--%208.5-blue?style=flat-square&logo=php)](https://php.net)
+[![PHP](https://img.shields.io/badge/PHP-8.2%20--%208.5-blue?style=flat-square&logo=php)](https://php.net)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-brightgreen?style=flat-square)](phpstan.neon.dist)
 
 ## Overview
@@ -260,12 +260,12 @@ The CI matrix runs every valid PHP × Laravel combination on every push. Combina
 
 | Laravel Version | Supported PHP Versions |
 | --------------- | ---------------------- |
-| **10.x**        | 8.1 – 8.3              |
+| **10.x**        | 8.2 – 8.3              |
 | **11.x**        | 8.2 – 8.4              |
 | **12.x**        | 8.3 – 8.5              |
 | **13.x**        | 8.3 – 8.5              |
 
-> PHP 8.0 is intentionally not supported: Laravel 10 — the oldest framework version this package targets — requires PHP 8.1 or newer.
+> PHP 8.0 and 8.1 are intentionally not supported: both have reached end-of-life and the modern Pest / PHPUnit toolchain requires PHP 8.2+.
 
 ### Supported Databases
 
