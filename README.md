@@ -3,8 +3,8 @@
 [![Tests](https://github.com/ginkelsoft-development/laravel-data-retention/actions/workflows/tests.yml/badge.svg)](https://github.com/ginkelsoft-development/laravel-data-retention/actions/workflows/tests.yml)
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/ginkelsoft/laravel-data-retention.svg?style=flat-square)](https://packagist.org/packages/ginkelsoft/laravel-data-retention)
 [![License](https://img.shields.io/github/license/ginkelsoft-development/laravel-data-retention.svg?style=flat-square)](LICENSE.md)
-[![Laravel](https://img.shields.io/badge/Laravel-11--13-brightgreen?style=flat-square&logo=laravel)](https://laravel.com)
-[![PHP](https://img.shields.io/badge/PHP-8.3%20--%208.5-blue?style=flat-square&logo=php)](https://php.net)
+[![Laravel](https://img.shields.io/badge/Laravel-10--13-brightgreen?style=flat-square&logo=laravel)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.1%20--%208.5-blue?style=flat-square&logo=php)](https://php.net)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-brightgreen?style=flat-square)](phpstan.neon.dist)
 
 ## Overview
@@ -256,13 +256,16 @@ The factories (`Ginkelsoft\DataRetention\Database\Factories\{ClientFactory,Audit
 
 ## Framework Compatibility
 
+The CI matrix runs every valid PHP × Laravel combination on every push. Combinations that Laravel itself does not support (e.g. PHP 8.1 + Laravel 11) are omitted on purpose.
+
 | Laravel Version | Supported PHP Versions |
 | --------------- | ---------------------- |
-| **11.x**        | 8.3                    |
-| **12.x**        | 8.3 – 8.4              |
-| **13.x**        | 8.4 – 8.5              |
+| **10.x**        | 8.1 – 8.3              |
+| **11.x**        | 8.2 – 8.4              |
+| **12.x**        | 8.3 – 8.5              |
+| **13.x**        | 8.3 – 8.5              |
 
-CI matrix runs all combinations on every push.
+> PHP 8.0 is intentionally not supported: Laravel 10 — the oldest framework version this package targets — requires PHP 8.1 or newer.
 
 ### Supported Databases
 
