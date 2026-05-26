@@ -1,8 +1,8 @@
 # Ginkelsoft Laravel Data Retention
 
-[![Tests](https://github.com/ginkelsoft-development/laravel-data-retention/actions/workflows/tests.yml/badge.svg)](https://github.com/ginkelsoft-development/laravel-data-retention/actions/workflows/tests.yml)
+[![Tests](https://github.com/ginkelsoft-development/laravel-data-retention/actions/workflows/tests.yml/badge.svg?branch=development)](https://github.com/ginkelsoft-development/laravel-data-retention/actions/workflows/tests.yml)
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/ginkelsoft/laravel-data-retention.svg?style=flat-square)](https://packagist.org/packages/ginkelsoft/laravel-data-retention)
-[![License](https://img.shields.io/github/license/ginkelsoft-development/laravel-data-retention.svg?style=flat-square)](LICENSE.md)
+[![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
 [![Laravel](https://img.shields.io/badge/Laravel-10--13-brightgreen?style=flat-square&logo=laravel)](https://laravel.com)
 [![PHP](https://img.shields.io/badge/PHP-8.2%20--%208.5-blue?style=flat-square&logo=php)](https://php.net)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-brightgreen?style=flat-square)](phpstan.neon.dist)
@@ -319,5 +319,5 @@ vendor/bin/pint --test
 
 ## License
 
-MIT License — see [LICENSE.md](LICENSE.md).
+MIT License — see [LICENSE](LICENSE).
 (c) 2026 Ginkelsoft
