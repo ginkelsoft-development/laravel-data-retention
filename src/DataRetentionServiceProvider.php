@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention;
 
+use Ginkelsoft\DataRetention\Concerns\Forgettable;
 use Ginkelsoft\DataRetention\Concerns\HasRetention;
+use Ginkelsoft\DataRetention\Console\ForgetSubjectCommand;
 use Ginkelsoft\DataRetention\Console\RunRetentionCommand;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,8 +17,9 @@ use Illuminate\Support\ServiceProvider;
  *
  * Responsibilities:
  * - Merge and publish the package configuration.
- * - Publish the `retention_log` migration.
- * - Register the `retention:run` Artisan command.
+ * - Publish the `retention_log` and `forget_log` migrations.
+ * - Register the `retention:run` and `retention:forget` Artisan
+ *   commands.
  *
  * Typical installation:
  *
@@ -26,8 +29,9 @@ use Illuminate\Support\ServiceProvider;
  * php artisan migrate
  *
  * After installation, any model using {@see HasRetention}
- * can declare a retention policy and will be processed when the
- * `retention:run` command executes.
+ * can declare a time-driven retention policy and will be processed by
+ * `retention:run`. Models using {@see Forgettable} can additionally
+ * be processed per subject by `retention:forget {subject}`.
  */
 class DataRetentionServiceProvider extends ServiceProvider
 {
@@ -54,6 +58,7 @@ class DataRetentionServiceProvider extends ServiceProvider
         $timestamp = date('Y_m_d_His');
         $this->publishes([
             __DIR__.'/../database/migrations/create_retention_log_table.php' => database_path("migrations/{$timestamp}_create_retention_log_table.php"),
+            __DIR__.'/../database/migrations/create_forget_log_table.php' => database_path('migrations/'.date('Y_m_d_His', time() + 1).'_create_forget_log_table.php'),
         ], 'data-retention-migrations');
 
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
@@ -61,6 +66,7 @@ class DataRetentionServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 RunRetentionCommand::class,
+                ForgetSubjectCommand::class,
             ]);
         }
     }

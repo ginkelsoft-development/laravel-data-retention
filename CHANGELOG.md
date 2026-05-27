@@ -26,20 +26,44 @@ and the project follows [Semantic Versioning](https://semver.org/).
   silently-dropped rows.
 - `retention:run` Artisan command with `--dry-run`, `--model`, and `--chunk`
   options. Chunked, idempotent, scheduler-friendly.
+- **Right to be forgotten (GDPR art. 17)**:
+  - `Forgettable` interface (`Contracts\Forgettable`), trait
+    (`Concerns\Forgettable`), and `#[Forgettable]` class attribute, with the
+    same attribute / property duality as the retention API.
+  - `ForgettableConfig` resolver and `SubjectHash` support class producing
+    an irreversible SHA-256 of the subject identifier bound to `log_secret`.
+  - `ApplyForget` per-record action and `ForgetSubject` orchestrator that
+    sweeps every model registered under `data-retention.forgettable.models`.
+  - `retention:forget {subject} [--dry-run]` Artisan command.
+  - Dedicated `forget_log` table with the same hash-chain structure as
+    `retention_log` but kept apart on purpose: extending `retention_log`
+    with a `subject_hash` column would have changed the payload schema and
+    invalidated the chain of any pre-existing log rows.
+  - Idempotent: a second forget request for the same subject finds nothing
+    new to act on and writes no additional log entries.
 - Demo factories (`ClientFactory`, `AuditEntryFactory`) and a
   `RetentionDemoSeeder` so a developer can see a realistic mix of
   expired/anonymized/deleted records on first install.
-- 61 Pest tests across unit and feature suites, including explicit
-  tamper-detection scenarios (modify / insert / drop / wrong secret) and
-  end-to-end chain verification on factory-driven datasets.
+- 87 Pest tests across unit and feature suites, including explicit
+  tamper-detection scenarios (modify / insert / drop / wrong secret),
+  end-to-end chain verification on factory-driven datasets, and full
+  coverage of the forgotten flow (per-model dispatch, dry-run, idempotency,
+  PII non-leakage, soft-delete handling, custom `forSubjectQuery` overrides).
 - GitHub Actions matrix: PHP 8.2-8.5 × Laravel 10-13 (11 valid combinations),
   with separate PHPStan-max and Pint code-style jobs.
 
+### Changed
+
+- Extracted strategy resolution from `ApplyRetention` into a shared
+  `Strategies\StrategyResolver` so both `ApplyRetention` and `ApplyForget`
+  use the same logic. No behaviour change.
+
 ### Notes
 
-- This package is the **first** module of the GinkelSoft AVG-compliance
-  family. Future packages (consent, subject-access, right-to-be-forgotten,
-  breach registry) will share its config pattern and audit-log structure.
+- This package now covers both AVG-controls 5(1)(e) and 17. The remaining
+  GinkelSoft AVG-compliance modules (consent, subject-access, breach
+  registry) are still planned as separate packages and will share this
+  package's config pattern, audit-log structure, and hash chain.
 - PHP 8.0 and 8.1 are intentionally not supported: both have reached
   end-of-life and the modern Pest / PHPUnit toolchain requires PHP 8.2+.
 

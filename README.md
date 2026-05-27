@@ -32,12 +32,13 @@ Hand-rolled cron scripts solve #2 at best, fail at #3 silently, and tend to drif
 ## Key Features
 
 * **Per-model retention policies** declared on the Eloquent model itself, with either a PHP `#[Retention]` attribute or a `$retention` property.
-* **Delete or anonymize** on expiry — soft-delete-aware so personal data really leaves the database.
+* **Right to be forgotten** (GDPR art. 17): the same delete / anonymize / strategy machinery driven per subject instead of per clock, with its own audit log.
+* **Delete or anonymize** on expiry or on request — soft-delete-aware so personal data really leaves the database.
 * **Pluggable anonymize strategies**: `null`, `hash`, `placeholder`, or any closure / callable you supply.
-* **Tamper-evident audit log** with a SHA-256 hash chain — every row depends on the previous one and an application secret.
-* **Dry-run mode** (`retention:run --dry-run`) so you can preview a sweep before trusting it.
-* **Chunked, queue-friendly Artisan command** designed to be scheduled daily.
-* **Privacy by design**: the audit log contains pointers (class + primary key), never the original field values.
+* **Tamper-evident audit logs** (one for retention, one for forgetting) with a SHA-256 hash chain — every row depends on the previous one and an application secret.
+* **Dry-run mode** on both commands so you can preview a sweep before trusting it.
+* **Chunked, queue-friendly Artisan commands** designed to be scheduled daily.
+* **Privacy by design**: the audit logs contain pointers (class + primary key) and an irreversible subject hash, never the original field values or subject identifiers.
 * **Backend-only**, Laravel-native, MIT-licensed, PHPStan-max, Pint-formatted, Pest-tested.
 
 ---
@@ -254,6 +255,97 @@ The factories (`Ginkelsoft\DataRetention\Database\Factories\{ClientFactory,Audit
 
 ---
 
+## Right to be Forgotten
+
+Time-based retention answers "is this data old enough to remove?". GDPR art. 17 ("right to be forgotten") answers a different question: "this specific person has asked me to remove **everything** about them, today." The two controls have the same building blocks (delete vs. anonymize, per-field strategies, append-only audit log) but the trigger is different — one is the clock, the other is the subject themselves.
+
+### Declare which models hold subject data
+
+Mirror of the retention pattern: an attribute for simple cases, a property for anonymize. Models must additionally implement the `Ginkelsoft\DataRetention\Contracts\Forgettable` interface — the trait provides the default implementation, the interface gives the orchestrator the type safety it needs.
+
+```php
+use Ginkelsoft\DataRetention\Attributes\Forgettable;
+use Ginkelsoft\DataRetention\Concerns\Forgettable as ForgettableTrait;
+use Ginkelsoft\DataRetention\Contracts\Forgettable as ForgettableContract;
+
+#[Forgettable(column: 'id', action: 'delete')]
+class User extends Model implements ForgettableContract
+{
+    use ForgettableTrait;
+}
+
+#[Forgettable(column: 'user_id', action: 'delete')]
+class Order extends Model implements ForgettableContract
+{
+    use ForgettableTrait;
+}
+
+class Profile extends Model implements ForgettableContract
+{
+    use ForgettableTrait;
+
+    protected array $forgettable = [
+        'column'    => 'user_id',
+        'action'    => 'anonymize',
+        'anonymize' => [
+            'first_name' => 'placeholder',
+            'last_name'  => 'placeholder',
+            'email'      => 'hash',
+        ],
+    ];
+}
+```
+
+For complex subject mappings (subject can appear in either of two columns, polymorphic relation, etc) override the static `forSubjectQuery` method on the model. See `tests/Models/ForgetTicket.php` for an OR-across-two-columns example.
+
+### Register the models
+
+```php
+// config/data-retention.php
+'forgettable' => [
+    'models' => [
+        \App\Models\User::class,
+        \App\Models\Profile::class,
+        \App\Models\Order::class,
+    ],
+],
+```
+
+### Run the sweep
+
+```bash
+php artisan retention:forget 01HXYZ --dry-run
+php artisan retention:forget 01HXYZ
+```
+
+The first argument is the subject identifier: whatever string consistently identifies the person across your models (typically a user primary key or ULID). The orchestrator iterates every registered model and applies its policy to records linked to that subject. Idempotent: a second run finds no new records and writes no new log entries.
+
+### A separate, parallel audit log
+
+Forget actions are recorded in a separate `forget_log` table, not in `retention_log`. This is a deliberate choice. The retention chain is computed over a fixed payload schema; adding a `subject_hash` column there would change the hash of every row written after the migration, breaking verifiability of pre-existing entries. By keeping the two logs apart, each chain stays internally consistent and independently auditable.
+
+The `forget_log` rows contain `subject_hash` (an irreversible SHA-256 of the subject identifier plus `log_secret`), the source model class and primary key, the action (`forgotten_deleted` or `forgotten_anonymized`), timestamps, and the chain hashes. No subject identifier, no field values — just the proof that the person was forgotten.
+
+Verifying the chain works the same way:
+
+```php
+use Ginkelsoft\DataRetention\Support\HashChain;
+use Illuminate\Support\Facades\DB;
+
+$entries = DB::table('forget_log')->orderBy('id')->get()
+    ->map(fn ($row) => (array) $row)->all();
+
+$intact = HashChain::verify($entries, config('data-retention.log_secret'));
+```
+
+### What the forget sweep does not do
+
+- It does not cascade implicitly. Only models explicitly listed in `forgettable.models` and using the trait + contract are touched. If `Order` is forgotten but `OrderLine` is not in the list, the order lines remain — give them their own Forgettable policy if they hold personal data.
+- It does not handle backup or warehouse copies. Those need a separate procedure documented in your DPIA.
+- It does not block re-creation. If your application re-fills a profile for the same subject after a forget, that is application logic to fix, not retention logic.
+
+---
+
 ## Framework Compatibility
 
 The CI matrix runs every valid PHP × Laravel combination on every push. Combinations that Laravel itself does not support (e.g. PHP 8.2 + Laravel 13, since Laravel 13 requires PHP 8.3+) are omitted on purpose.
@@ -295,11 +387,10 @@ These are intentional design choices. Read them once.
 
 ## Roadmap
 
-This package is the **first** module of a wider GinkelSoft AVG-compliance family. The following packages will share its conventions (config pattern, audit-log structure) but are **not** part of this release:
+This package covers two GDPR controls: storage limitation (art. 5(1)(e)) and the right to be forgotten (art. 17). The remaining members of the GinkelSoft AVG-compliance family are planned as separate packages and will share this package's conventions (config pattern, audit-log structure, hash chain):
 
 - `ginkelsoft/laravel-data-consent` — recording and revoking processing consent.
 - `ginkelsoft/laravel-data-subject-access` — automated subject-access (inzage) exports.
-- `ginkelsoft/laravel-data-right-to-be-forgotten` — provable, complete erasure across an aggregate.
 - `ginkelsoft/laravel-data-breach-registry` — datalek registration aligned with AVG art. 33–34.
 
 If you have opinions about the shape of any of these, open an issue.

@@ -42,3 +42,4 @@ dist/
 database/*.sqlite
 *.sql
 testbed/
+*.docx
