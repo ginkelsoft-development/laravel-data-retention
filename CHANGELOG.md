@@ -50,11 +50,19 @@ and the project follows [Semantic Versioning](https://semver.org/).
   `assignedTo`), plus a `ForgettableDemoSeeder` that seeds three
   subjects across all four models — one full subject, one untouched
   subject to prove non-overreach, and one with only partial coverage.
-- 91 Pest tests across unit and feature suites, including explicit
+- Demo factory for the subject access flow (`ExportLoginFactory` plus
+  reuse of the existing `ForgetUserFactory` / `ForgetProfileFactory`),
+  and a real-world test scenario that exercises a single model
+  carrying all three policies (HasRetention, Forgettable, Exportable).
+- 127 Pest tests across unit and feature suites, including explicit
   tamper-detection scenarios (modify / insert / drop / wrong secret),
-  end-to-end chain verification on factory-driven datasets, and full
-  coverage of the forgotten flow (per-model dispatch, dry-run, idempotency,
-  PII non-leakage, soft-delete handling, custom `forSubjectQuery` overrides).
+  end-to-end chain verification on factory-driven datasets, full
+  coverage of the forgotten flow (per-model dispatch, dry-run,
+  idempotency, PII non-leakage, soft-delete handling, custom
+  `forSubjectQuery` overrides), and full coverage of the subject
+  access flow (correct field selection, opt-in only, transforms,
+  no over-reach, no mutation, log row per matched model with hash
+  chain still verifiable).
 - GitHub Actions matrix: PHP 8.2-8.5 × Laravel 10-13 (11 valid combinations),
   with separate PHPStan-max and Pint code-style jobs.
 
@@ -66,10 +74,18 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ### Notes
 
-- This package now covers both AVG-controls 5(1)(e) and 17. The remaining
-  GinkelSoft AVG-compliance modules (consent, subject-access, breach
+- This package now covers three AVG-controls: storage limitation
+  (art. 5(1)(e)), right to be forgotten (art. 17), and right of access
+  (art. 15, doubling as art. 20 portability via the JSON exporter).
+  The remaining GinkelSoft AVG-compliance modules (consent, breach
   registry) are still planned as separate packages and will share this
   package's config pattern, audit-log structure, and hash chain.
+- Identity verification of a subject access requester is intentionally
+  out of scope and remains the application's responsibility.
+- `retention_log.model_id` is overloaded: it carries a record primary
+  key for retention / forget rows, and a `SubjectHash` for subject
+  access rows. Filter by `retention_field` (`subject_access` or other)
+  to distinguish them at query time.
 - PHP 8.0 and 8.1 are intentionally not supported: both have reached
   end-of-life and the modern Pest / PHPUnit toolchain requires PHP 8.2+.
 
