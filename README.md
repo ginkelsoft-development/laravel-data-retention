@@ -235,9 +235,11 @@ Implement `Ginkelsoft\DataRetention\Contracts\AnonymizeStrategy` if you need a r
 
 ---
 
-## Trying It Out (Demo Seeder)
+## Trying It Out (Demo Seeders)
 
-A factory + seeder ship with the package's test models so you can see the system in action immediately:
+Two factory-driven seeders ship with the package so you can see each control in action against realistic dummy data.
+
+### Time-driven retention
 
 ```bash
 php artisan db:seed --class="Ginkelsoft\\DataRetention\\Database\\Seeders\\RetentionDemoSeeder"
@@ -252,6 +254,29 @@ After the run:
 - 15 audit-log rows are written, chained, and verifiable.
 
 The factories (`Ginkelsoft\DataRetention\Database\Factories\{ClientFactory,AuditEntryFactory}`) expose `expired()`, `active()`, and `recentlyEnded()` states you can lift into your own test suite as a template for writing factories on your real models.
+
+### Subject-driven forget
+
+```bash
+php artisan db:seed --class="Ginkelsoft\\DataRetention\\Database\\Seeders\\ForgettableDemoSeeder"
+php artisan retention:forget alice-01 --dry-run
+php artisan retention:forget alice-01
+```
+
+The seeder creates three subjects across four related models:
+
+- `alice-01` — a complete record: own user row, profile, two orders, and two tickets (one reported, one assigned).
+- `bob-02` — same shape, exists to prove the sweep does not over-reach across subjects.
+- `carol-03` — has only a user row and three orders, no profile or ticket.
+
+After forgetting `alice-01`:
+
+- Her user row is deleted, her orders are deleted, her tickets are deleted.
+- Her profile is anonymized in place (`first_name` and `last_name` become `[REDACTED]`, `email` becomes a 64-character SHA-256 hash).
+- Bob and Carol are untouched.
+- Six rows land in `forget_log`, all bound to the same `subject_hash`, chained, and verifiable.
+
+The factories (`Ginkelsoft\DataRetention\Database\Factories\{ForgetUserFactory,ForgetProfileFactory,ForgetOrderFactory,ForgetTicketFactory}`) expose `withId(...)`, `forSubject(...)`, `reportedBy(...)`, and `assignedTo(...)` helper states so you can build similar fixtures for your own models.
 
 ---
 

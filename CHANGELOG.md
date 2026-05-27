@@ -44,7 +44,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - Demo factories (`ClientFactory`, `AuditEntryFactory`) and a
   `RetentionDemoSeeder` so a developer can see a realistic mix of
   expired/anonymized/deleted records on first install.
-- 87 Pest tests across unit and feature suites, including explicit
+- Demo factories for the forget flow (`ForgetUserFactory`,
+  `ForgetProfileFactory`, `ForgetOrderFactory`, `ForgetTicketFactory`)
+  with helper states (`withId`, `forSubject`, `reportedBy`,
+  `assignedTo`), plus a `ForgettableDemoSeeder` that seeds three
+  subjects across all four models — one full subject, one untouched
+  subject to prove non-overreach, and one with only partial coverage.
+- 91 Pest tests across unit and feature suites, including explicit
   tamper-detection scenarios (modify / insert / drop / wrong secret),
   end-to-end chain verification on factory-driven datasets, and full
   coverage of the forgotten flow (per-model dispatch, dry-run, idempotency,
