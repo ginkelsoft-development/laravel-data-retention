@@ -34,13 +34,15 @@ Hand-rolled cron scripts solve #2 at best, fail at #3 silently, and tend to drif
 * **Per-model retention policies** declared on the Eloquent model itself, with either a PHP `#[Retention]` attribute or a `$retention` property.
 * **Right to be forgotten** (GDPR art. 17): the same delete / anonymize / strategy machinery driven per subject instead of per clock, with its own audit log.
 * **Subject access** (GDPR art. 15, doubles as art. 20 portability): collect every record an application holds about a single subject and render it as JSON or Markdown, read-only, with the access itself recorded in the audit chain.
+* **Consent registry** (GDPR art. 6(1)(a) + art. 7): append-only event log of every grant and withdrawal of consent, with a status helper to query the current state per (subject, purpose, version).
+* **Breach registry** (GDPR art. 33-34): mutable register of personal-data breaches paired with a hash-chained event log, 72-hour deadline helper, and CLI for daily monitoring.
 * **Delete or anonymize** on expiry or on request — soft-delete-aware so personal data really leaves the database.
 * **Pluggable anonymize strategies**: `null`, `hash`, `placeholder`, or any closure / callable you supply.
-* **Tamper-evident audit logs** (one for retention + access, one for forgetting) with a SHA-256 hash chain — every row depends on the previous one and an application secret.
+* **Tamper-evident audit logs** across all five controls — every log row depends on the previous one and an application secret, verifiable via `HashChain::verify()`.
 * **Pluggable export formats** through the `Exporter` contract — JSON and Markdown out of the box, extensible without modifying the package.
 * **Dry-run mode** on the destructive commands so you can preview a sweep before trusting it.
 * **Chunked, queue-friendly Artisan commands** designed to be scheduled daily.
-* **Privacy by design**: the audit logs contain pointers (class + primary key) and an irreversible subject hash, never the original field values or subject identifiers.
+* **Privacy by design**: the retention, forget, access, and breach logs never hold field values; the consent log holds the subject identifier (necessary for art. 7) but no further PII.
 * **Backend-only**, Laravel-native, MIT-licensed, PHPStan-max, Pint-formatted, Pest-tested.
 
 ---
@@ -165,6 +167,8 @@ The `data-retention.log_secret` plays the role of a HMAC key: it lives in `.env`
 * **GDPR art. 5(1)(e) / AVG art. 5 lid 1 sub e** — Storage limitation. This package gives you a documented, automated mechanism to retire data and a tamper-evident record that demonstrates compliance to the supervisory authority.
 * **GDPR art. 5(2)** — Accountability. The hash chain is the evidence.
 * **GDPR art. 15 / art. 20** — Right of access and data portability. The `retention:export` command produces a structured snapshot of every Exportable record per subject.
+* **GDPR art. 6(1)(a) / art. 7** — Lawful basis: consent. The consent log demonstrates *when* and *how* consent was given, and that withdrawal was as straightforward as the original grant.
+* **GDPR art. 33 / art. 34** — Notification of personal-data breaches. The breach registry produces the formal register that supervisory authorities can audit, and surfaces breaches approaching the 72-hour deadline.
 * **ISO 27001:2022 A.5.34 / A.8.10** — Information deletion. The audit log produces the "records of erasure" that this control requires.
 * **NEN 7510 / NEN 7513** (Dutch healthcare) — Append-only logging of data lifecycle events is compatible with NEN 7513 requirements; the log itself stores no patient data.
 
@@ -479,6 +483,162 @@ The retention_log hash chain stays intact: every access row links to the previou
 
 ---
 
+## Consent (Toestemming)
+
+GDPR art. 6(1)(a) lets you process personal data when the subject has consented; art. 7 then requires that you can demonstrate consent was given. This module is the demonstration: every grant and every withdrawal is recorded as an append-only, hash-chained event in `consent_log`. Whether consent is currently active for a given (subject, purpose) is derived from the latest event for that pair.
+
+Unlike the other audit logs in this package, `consent_log` does store the subject identifier directly. Consent inherently requires identification — you cannot prove "this person consented" without knowing who they are. Document that in your DPIA and apply your own retention policy to this table.
+
+### Record a grant or withdrawal
+
+```php
+use Ginkelsoft\DataRetention\Actions\RecordConsent;
+
+$consent = new RecordConsent;
+
+$consent->grant(
+    subjectId: '01HXYZ',
+    purpose: 'newsletter',
+    version: '2026-05',
+    source: 'web',
+    metadata: ['ip' => '203.0.113.5', 'form' => 'signup-v3'],
+);
+
+$consent->withdraw(
+    subjectId: '01HXYZ',
+    purpose: 'newsletter',
+    version: '2026-05',
+    source: 'email',
+);
+```
+
+`version` lets you tie consent to a specific consent text or processing context. When you change your terms, prior consent does not automatically cover the new version — record a fresh grant against the new version string.
+
+### Query consent
+
+```php
+use Ginkelsoft\DataRetention\Support\ConsentStatus;
+
+$status = new ConsentStatus;
+
+$status->isGranted('01HXYZ', 'newsletter');                 // true / false
+$status->isGranted('01HXYZ', 'newsletter', version: '2026-05');
+$status->latest('01HXYZ', 'newsletter');                    // most recent ConsentEntry or null
+$status->activeFor('01HXYZ');                                // map of purpose => ConsentEntry
+$status->history('01HXYZ', purpose: 'newsletter');           // Collection<ConsentEntry>
+```
+
+`activeFor` returns only purposes whose latest event is `granted` — perfect for an account dashboard that lists "what you currently consent to".
+
+### CLI
+
+For ops, backfills, and tests:
+
+```bash
+php artisan retention:consent:grant 01HXYZ newsletter --consent-version=2026-05 --source=web
+php artisan retention:consent:withdraw 01HXYZ newsletter --consent-version=2026-05 --source=email
+php artisan retention:consent:status 01HXYZ
+```
+
+`--consent-version` rather than `--version` because Symfony already uses `--version` as a reserved option.
+
+### Gotchas specific to consent
+
+- **The log stores subject identifiers directly.** That is necessary for art. 7 accountability — proof of consent has to be linkable to a real person. Mention this table in your DPIA.
+- **No automatic deduplication.** Two `grant` calls in a row produce two `granted` rows. Sometimes that is exactly what you want (re-affirming consent). When you do want "only when not currently granted" semantics, check `ConsentStatus::isGranted()` first.
+- **Withdrawal does not delete the prior grant.** It records a new event that supersedes it. The grant stays in the log forever — that is what makes the chain a usable audit trail.
+- **Forget does not automatically cascade to consent_log.** A subject exercising their right to be forgotten will not have their consent records removed unless you explicitly register `ConsentEntry` as Forgettable. The legal argument for keeping consent + withdrawal records even after forget is real (you may need them to defend the lawfulness of past processing), so this is opt-in rather than default.
+
+---
+
+## Datalek-registratie (Breach Registry)
+
+GDPR art. 33-34 require you to keep a register of every personal-data breach and, for serious ones, to notify the supervisory authority within 72 hours of discovery and (when the risk is high) the affected subjects as well. This module is that register.
+
+Two tables work together. `breach_register` holds the current state of each breach — open, contained, resolved, reported to whom and when. `breach_event_log` is the append-only, hash-chained audit trail of every state transition. The register answers "where do we stand?"; the event log answers "how did we get here?", and is the part an auditor will scrutinize.
+
+The event log holds only metadata: action names, field diffs, optionally an actor. It never holds personal data — that data lives in the source systems the breach concerns, not in the register.
+
+### Register a breach
+
+```php
+use Ginkelsoft\DataRetention\Actions\BreachRegistry;
+use Illuminate\Support\Carbon;
+
+$registry = new BreachRegistry;
+
+$breach = $registry->register(
+    reference: 'BREACH-2026-001',
+    discoveredAt: Carbon::parse('2026-05-27 09:15'),
+    description: 'Misdirected client export sent to wrong recipient.',
+    severity: 'high',
+    occurredAt: Carbon::parse('2026-05-27 08:50'),
+    dataCategories: ['name', 'email', 'order_history'],
+    subjectsAffected: 42,
+    cause: 'Operator selected the wrong recipient group.',
+    actor: 'ops@example.com',
+);
+```
+
+The 72-hour deadline for notifying the supervisory authority (AP in NL) runs from `discoveredAt`. The model exposes `authorityNotificationDeadline()` and `isAuthorityNotificationOverdue()` for direct use in dashboards.
+
+### Update, contain, resolve
+
+```php
+$registry->update('BREACH-2026-001', [
+    'mitigation' => 'Recipient confirmed deletion. Tokens revoked.',
+    'severity'   => 'medium',
+], actor: 'ops@example.com');
+
+$registry->reportToAuthority('BREACH-2026-001', notificationReference: 'AP-2026-9999');
+$registry->reportToSubjects('BREACH-2026-001', channel: 'email');
+
+$registry->contain('BREACH-2026-001');
+$registry->resolve('BREACH-2026-001');
+```
+
+Each call atomically updates the register row and appends a hash-chained event. Updates with identical values are no-ops — no event is written when nothing actually changes.
+
+### Find the deadlines that matter
+
+```php
+use Ginkelsoft\DataRetention\Support\BreachDeadlines;
+
+$deadlines = new BreachDeadlines(warningWindowHours: 24);
+
+$overdue = $deadlines->overdue();         // 72 hours passed, authority not notified
+$approaching = $deadlines->approaching(); // deadline in the next 24 hours
+```
+
+### CLI
+
+```bash
+php artisan retention:breach:register BREACH-2026-001 \
+    --description="Misdirected export" \
+    --severity=high \
+    --discovered="2026-05-27 09:15" \
+    --subjects=42 \
+    --categories="name,email"
+
+php artisan retention:breach:list
+php artisan retention:breach:list --status=open
+
+php artisan retention:breach:show BREACH-2026-001
+
+php artisan retention:breach:deadlines
+php artisan retention:breach:deadlines --warning=48
+```
+
+`retention:breach:deadlines` exits with a non-zero code when there are overdue breaches — perfect for a scheduled job that pages someone when a 72-hour clock is about to expire.
+
+### Gotchas specific to the breach registry
+
+- **No notification is automatic.** This module records that a breach happened and that you notified — it does NOT actually send the email to the AP or to subjects. The notification itself is a business process you own. Use `reportToAuthority` / `reportToSubjects` to mark the moment you completed it.
+- **Severity is your judgement.** The package accepts `low`, `medium`, `high`, `critical` as enum-like values, but does not assess them for you. Whether a breach requires subject notification (art. 34: "high risk") is your DPIA call.
+- **The register is the canonical record, the event log is the proof.** Direct Eloquent `update()` on `BreachRegisterEntry` is allowed by Laravel but skips the event log; always go through `BreachRegistry` so the audit trail stays complete.
+
+---
+
 ## Framework Compatibility
 
 The CI matrix runs every valid PHP × Laravel combination on every push. Combinations that Laravel itself does not support (e.g. PHP 8.2 + Laravel 13, since Laravel 13 requires PHP 8.3+) are omitted on purpose.
@@ -520,12 +680,21 @@ These are intentional design choices. Read them once.
 
 ## Roadmap
 
-This package covers three GDPR controls: storage limitation (art. 5(1)(e)), the right to be forgotten (art. 17), and the right of access (art. 15, doubling as art. 20 portability). The remaining members of the GinkelSoft AVG-compliance family are planned as separate packages and will share this package's conventions (config pattern, audit-log structure, hash chain):
+This package covers five GDPR controls in a single dependency:
 
-- `ginkelsoft/laravel-data-consent` — recording and revoking processing consent.
-- `ginkelsoft/laravel-data-breach-registry` — datalek registration aligned with AVG art. 33–34.
+- Storage limitation (art. 5(1)(e))
+- Right to be forgotten (art. 17)
+- Right of access (art. 15, doubling as art. 20 portability)
+- Consent registry (art. 6(1)(a) + art. 7)
+- Breach registry (art. 33-34)
 
-If you have opinions about the shape of any of these, open an issue.
+What is intentionally NOT in this package:
+
+- Identity verification of the subject behind a forget / access / consent request — application responsibility.
+- The notification mechanism itself for breaches (email to AP, email to subjects) — business process you own; the registry records the moment you completed it.
+- Generic GDPR consulting. The package gives you the mechanics; the policies, retention periods, severity assessments, and DPIA judgements are yours.
+
+If you have opinions or want to discuss adjacent capabilities, open an issue on GitHub.
 
 ---
 

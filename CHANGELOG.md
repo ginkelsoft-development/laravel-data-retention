@@ -54,15 +54,61 @@ and the project follows [Semantic Versioning](https://semver.org/).
   reuse of the existing `ForgetUserFactory` / `ForgetProfileFactory`),
   and a real-world test scenario that exercises a single model
   carrying all three policies (HasRetention, Forgettable, Exportable).
-- 127 Pest tests across unit and feature suites, including explicit
+- **Consent registry (GDPR art. 6(1)(a) + art. 7)**:
+  - `consent_log` table with append-only `ConsentEntry` model. The
+    table stores the subject identifier directly because art. 7
+    accountability requires "proof that this person consented",
+    which an irreversible hash cannot provide. Documented as a
+    deliberate trade-off in the README.
+  - `Actions\RecordConsent::grant()` and `withdraw()` record events
+    with optional `version` (consent text version), `source`
+    (web / api / paper / phone / ...), and arbitrary JSON
+    `metadata`. Backfills supported via an `occurredAt` parameter.
+  - `Support\ConsentStatus` helper: `isGranted()`, `latest()`,
+    `history()`, `activeFor()`. Active consent is defined as
+    "latest event for (subject, purpose, version) has
+    action = granted".
+  - CLI: `retention:consent:grant`, `retention:consent:withdraw`,
+    `retention:consent:status`. `--consent-version` rather than
+    `--version` because Symfony already reserves the latter.
+  - Hash-chained over the consent_log so withdrawals cannot be
+    silently disappeared from the trail.
+- **Breach registry (GDPR art. 33-34)**:
+  - Two-table design: `breach_register` (mutable, current state)
+    and `breach_event_log` (append-only, hash-chained). Together
+    they answer "where do we stand?" and "how did we get here?".
+  - `Actions\BreachRegistry`: `register()`, `update()` (with field
+    diff in the event log), `reportToAuthority()`,
+    `reportToSubjects()`, `contain()`, `resolve()`. Every method is
+    atomic: it updates the register row AND appends an event in
+    the same DB transaction.
+  - `Models\BreachRegisterEntry` exposes
+    `authorityNotificationDeadline()`,
+    `isReportedToAuthority()`, and
+    `isAuthorityNotificationOverdue()` for direct use in
+    dashboards.
+  - `Support\BreachDeadlines` with `overdue()` and `approaching()`
+    queries for the 72-hour clock (art. 33(1)).
+  - CLI: `retention:breach:register`, `retention:breach:list`,
+    `retention:breach:show`, `retention:breach:deadlines`. The
+    deadlines command exits with a non-zero status when there are
+    overdue breaches — suitable for a scheduled alerting job.
+  - Severities: `low`, `medium`, `high`, `critical` (validated).
+    Data categories travel as a JSON array.
+- 167 Pest tests across unit and feature suites, including explicit
   tamper-detection scenarios (modify / insert / drop / wrong secret),
   end-to-end chain verification on factory-driven datasets, full
   coverage of the forgotten flow (per-model dispatch, dry-run,
   idempotency, PII non-leakage, soft-delete handling, custom
-  `forSubjectQuery` overrides), and full coverage of the subject
+  `forSubjectQuery` overrides), full coverage of the subject
   access flow (correct field selection, opt-in only, transforms,
   no over-reach, no mutation, log row per matched model with hash
-  chain still verifiable).
+  chain still verifiable), full coverage of consent (grant /
+  withdrawal / version scoping / activeFor / hash chain / tamper
+  detection / CLI), and full coverage of the breach registry
+  (registration / diff updates / no-op updates / reporting /
+  status transitions / hash chain / tamper detection / overdue
+  detection / approaching window / no PII in log).
 - GitHub Actions matrix: PHP 8.2-8.5 × Laravel 10-13 (11 valid combinations),
   with separate PHPStan-max and Pint code-style jobs.
 
@@ -74,18 +120,24 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ### Notes
 
-- This package now covers three AVG-controls: storage limitation
-  (art. 5(1)(e)), right to be forgotten (art. 17), and right of access
-  (art. 15, doubling as art. 20 portability via the JSON exporter).
-  The remaining GinkelSoft AVG-compliance modules (consent, breach
-  registry) are still planned as separate packages and will share this
-  package's config pattern, audit-log structure, and hash chain.
-- Identity verification of a subject access requester is intentionally
-  out of scope and remains the application's responsibility.
+- This package now covers five AVG-controls in one dependency:
+  storage limitation (art. 5(1)(e)), right to be forgotten (art. 17),
+  right of access (art. 15 + art. 20 portability), consent registry
+  (art. 6(1)(a) + art. 7), and breach registry (art. 33-34).
+- Identity verification of a subject behind a forget / access /
+  consent request is intentionally out of scope — application
+  responsibility. The actual notification mechanism for breaches
+  (email to the AP, email to affected subjects) is likewise outside
+  this package's scope; the registry records the moment you
+  completed it.
 - `retention_log.model_id` is overloaded: it carries a record primary
   key for retention / forget rows, and a `SubjectHash` for subject
-  access rows. Filter by `retention_field` (`subject_access` or other)
-  to distinguish them at query time.
+  access rows. Filter by `retention_field` (`subject_access` or
+  other) to distinguish them at query time.
+- `consent_log` is the only audit table that stores the subject
+  identifier directly. This is necessary for art. 7 accountability
+  (you must be able to demonstrate WHO consented). Document the
+  table in your DPIA and apply your own retention policy.
 - PHP 8.0 and 8.1 are intentionally not supported: both have reached
   end-of-life and the modern Pest / PHPUnit toolchain requires PHP 8.2+.
 

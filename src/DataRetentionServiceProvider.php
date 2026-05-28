@@ -7,9 +7,16 @@ namespace Ginkelsoft\DataRetention;
 use Ginkelsoft\DataRetention\Concerns\Exportable;
 use Ginkelsoft\DataRetention\Concerns\Forgettable;
 use Ginkelsoft\DataRetention\Concerns\HasRetention;
+use Ginkelsoft\DataRetention\Console\BreachDeadlinesCommand;
 use Ginkelsoft\DataRetention\Console\ExportSubjectCommand;
 use Ginkelsoft\DataRetention\Console\ForgetSubjectCommand;
+use Ginkelsoft\DataRetention\Console\GrantConsentCommand;
+use Ginkelsoft\DataRetention\Console\ListBreachesCommand;
+use Ginkelsoft\DataRetention\Console\RegisterBreachCommand;
 use Ginkelsoft\DataRetention\Console\RunRetentionCommand;
+use Ginkelsoft\DataRetention\Console\ShowBreachCommand;
+use Ginkelsoft\DataRetention\Console\ShowConsentStatusCommand;
+use Ginkelsoft\DataRetention\Console\WithdrawConsentCommand;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -63,6 +70,9 @@ class DataRetentionServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../database/migrations/create_retention_log_table.php' => database_path("migrations/{$timestamp}_create_retention_log_table.php"),
             __DIR__.'/../database/migrations/create_forget_log_table.php' => database_path('migrations/'.date('Y_m_d_His', time() + 1).'_create_forget_log_table.php'),
+            __DIR__.'/../database/migrations/create_consent_log_table.php' => database_path('migrations/'.date('Y_m_d_His', time() + 2).'_create_consent_log_table.php'),
+            __DIR__.'/../database/migrations/create_breach_register_table.php' => database_path('migrations/'.date('Y_m_d_His', time() + 3).'_create_breach_register_table.php'),
+            __DIR__.'/../database/migrations/create_breach_event_log_table.php' => database_path('migrations/'.date('Y_m_d_His', time() + 4).'_create_breach_event_log_table.php'),
         ], 'data-retention-migrations');
 
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
@@ -72,6 +82,13 @@ class DataRetentionServiceProvider extends ServiceProvider
                 RunRetentionCommand::class,
                 ForgetSubjectCommand::class,
                 ExportSubjectCommand::class,
+                GrantConsentCommand::class,
+                WithdrawConsentCommand::class,
+                ShowConsentStatusCommand::class,
+                RegisterBreachCommand::class,
+                ListBreachesCommand::class,
+                ShowBreachCommand::class,
+                BreachDeadlinesCommand::class,
             ]);
         }
     }
