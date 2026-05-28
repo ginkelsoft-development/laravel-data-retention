@@ -4,25 +4,22 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention\Models;
 
-use Ginkelsoft\DataRetention\Actions\CloseBreach;
-use Ginkelsoft\DataRetention\Actions\RegisterBreach;
-use Ginkelsoft\DataRetention\Actions\ReportBreachToAuthority;
-use Ginkelsoft\DataRetention\Actions\ReportBreachToSubjects;
-use Ginkelsoft\DataRetention\Actions\UpdateBreach;
+use Ginkelsoft\DataRetention\Actions\BreachRegistry;
+use Ginkelsoft\DataRetention\Database\Factories\BreachRegisterEntryFactory;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
  * Class BreachRegisterEntry
  *
- * The canonical, mutable record of one personal-data breach. Use
- * {@see RegisterBreach},
- * {@see UpdateBreach},
- * {@see ReportBreachToAuthority},
- * {@see ReportBreachToSubjects},
- * and {@see CloseBreach} to manipulate
- * rows — direct Eloquent updates work but skip the audit trail in
- * `breach_event_log`, which defeats the point of having a register.
+ * The canonical, mutable record of one personal-data breach. Use the
+ * methods on {@see BreachRegistry} (`register`, `update`,
+ * `reportToAuthority`, `reportToSubjects`, `contain`, `resolve`) to
+ * manipulate rows — direct Eloquent updates work but skip the audit
+ * trail in `breach_event_log`, which defeats the point of having a
+ * register.
  *
  * @property int $id
  * @property string $reference
@@ -42,9 +39,13 @@ use Illuminate\Support\Carbon;
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static> query()
  * @method static static create(array<string, mixed> $attributes = [])
+ * @method static BreachRegisterEntryFactory factory(...$arguments)
  */
 class BreachRegisterEntry extends Model
 {
+    /** @use HasFactory<BreachRegisterEntryFactory> */
+    use HasFactory;
+
     /** @var string */
     protected $table = 'breach_register';
 
@@ -103,5 +104,13 @@ class BreachRegisterEntry extends Model
         $instant = $asOf ?? Carbon::now();
 
         return $instant->greaterThan($this->authorityNotificationDeadline());
+    }
+
+    /**
+     * @return Factory<BreachRegisterEntry>
+     */
+    protected static function newFactory(): Factory
+    {
+        return BreachRegisterEntryFactory::new();
     }
 }

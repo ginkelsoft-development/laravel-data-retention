@@ -285,6 +285,31 @@ After forgetting `alice-01`:
 
 The factories (`Ginkelsoft\DataRetention\Database\Factories\{ForgetUserFactory,ForgetProfileFactory,ForgetOrderFactory,ForgetTicketFactory}`) expose `withId(...)`, `forSubject(...)`, `reportedBy(...)`, and `assignedTo(...)` helper states so you can build similar fixtures for your own models.
 
+### Consent log
+
+```bash
+php artisan db:seed --class="Ginkelsoft\\DataRetention\\Database\\Seeders\\ConsentDemoSeeder"
+php artisan retention:consent:status alice-01
+php artisan retention:consent:status dan-04
+```
+
+The seeder produces five subjects across realistic histories: a single grant, multiple purposes, a withdrawal, a version bump after the consent text changed, and an opt-in-out-in cycle. The full event sequence is hash-chained and verifiable through `HashChain::verify()` against `consent_log`.
+
+`ConsentEntryFactory` is also available with `granted()`, `withdrawn()`, `forSubject()`, `forPurpose()`, `version()`, `via()`, and `at()` helper states. Use `createOneAtATime($count)` instead of `count($n)->create()` when you need multiple chained rows in a row — Laravel batches `count()->create()` builds in a way that breaks the chain by reading the not-yet-persisted previous row.
+
+### Breach registry
+
+```bash
+php artisan db:seed --class="Ginkelsoft\\DataRetention\\Database\\Seeders\\BreachRegistryDemoSeeder"
+php artisan retention:breach:list
+php artisan retention:breach:deadlines
+php artisan retention:breach:show BREACH-DEMO-004
+```
+
+The seeder creates five breaches across the lifecycle: fresh and well within the deadline, approaching the 72-hour mark, overdue (the `retention:breach:deadlines` command exits with non-zero for this one), fully handled and resolved (with the complete event log: registered → updated → reported_authority → reported_subjects → contained → resolved), and a low-severity breach that was contained without escalation.
+
+`BreachRegisterEntryFactory` is available with `severity()`, `withCategories()`, `discoveredAt()`, `overdue()`, `approaching()`, `reportedToAuthority()`, `reportedToSubjects()`, `contained()`, and `resolved()` helper states. Note that the factory writes only to `breach_register` — for scenarios that exercise the matching `breach_event_log`, prefer going through the demo seeder or `BreachRegistry` directly.
+
 ---
 
 ## Right to be Forgotten

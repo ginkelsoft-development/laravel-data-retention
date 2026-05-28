@@ -54,6 +54,17 @@ and the project follows [Semantic Versioning](https://semver.org/).
   reuse of the existing `ForgetUserFactory` / `ForgetProfileFactory`),
   and a real-world test scenario that exercises a single model
   carrying all three policies (HasRetention, Forgettable, Exportable).
+- Demo factory + seeder for the consent flow (`ConsentEntryFactory`
+  with `granted/withdrawn/forSubject/forPurpose/version/via/at`
+  states, plus `ConsentDemoSeeder` that lays down five realistic
+  consent histories). Factory documents and accommodates Laravel's
+  batched `count()->create()` behaviour: `createOneAtATime($n)` for
+  scenarios that need many chained rows.
+- Demo factory + seeder for the breach registry
+  (`BreachRegisterEntryFactory` with `overdue/approaching/
+  reportedToAuthority/reportedToSubjects/contained/resolved`
+  states, plus `BreachRegistryDemoSeeder` that produces breaches
+  in every lifecycle state and exercises the full event chain).
 - **Consent registry (GDPR art. 6(1)(a) + art. 7)**:
   - `consent_log` table with append-only `ConsentEntry` model. The
     table stores the subject identifier directly because art. 7
@@ -95,7 +106,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
     overdue breaches — suitable for a scheduled alerting job.
   - Severities: `low`, `medium`, `high`, `critical` (validated).
     Data categories travel as a JSON array.
-- 167 Pest tests across unit and feature suites, including explicit
+- 180 Pest tests across unit and feature suites, including explicit
   tamper-detection scenarios (modify / insert / drop / wrong secret),
   end-to-end chain verification on factory-driven datasets, full
   coverage of the forgotten flow (per-model dispatch, dry-run,
@@ -105,10 +116,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   no over-reach, no mutation, log row per matched model with hash
   chain still verifiable), full coverage of consent (grant /
   withdrawal / version scoping / activeFor / hash chain / tamper
-  detection / CLI), and full coverage of the breach registry
-  (registration / diff updates / no-op updates / reporting /
-  status transitions / hash chain / tamper detection / overdue
-  detection / approaching window / no PII in log).
+  detection / CLI / factory states / demo seeder), and full
+  coverage of the breach registry (registration / diff updates /
+  no-op updates / reporting / status transitions / hash chain /
+  tamper detection / overdue detection / approaching window /
+  no PII in log / factory states / demo seeder lifecycle).
 - GitHub Actions matrix: PHP 8.2-8.5 × Laravel 10-13 (11 valid combinations),
   with separate PHPStan-max and Pint code-style jobs.
 

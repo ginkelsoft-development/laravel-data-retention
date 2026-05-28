@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention\Models;
 
+use Ginkelsoft\DataRetention\Database\Factories\ConsentEntryFactory;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -38,9 +41,13 @@ use Illuminate\Support\Carbon;
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static> query()
  * @method static static create(array<string, mixed> $attributes = [])
+ * @method static ConsentEntryFactory factory(...$arguments)
  */
 class ConsentEntry extends Model
 {
+    /** @use HasFactory<ConsentEntryFactory> */
+    use HasFactory;
+
     /** @var string */
     protected $table = 'consent_log';
 
@@ -83,5 +90,13 @@ class ConsentEntry extends Model
                 .'what GDPR art. 7(1) accountability requires you to keep.'
             );
         });
+    }
+
+    /**
+     * @return Factory<ConsentEntry>
+     */
+    protected static function newFactory(): Factory
+    {
+        return ConsentEntryFactory::new();
     }
 }
