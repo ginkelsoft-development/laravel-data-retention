@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention\Actions;
 
-use Closure;
-use Ginkelsoft\DataRetention\Contracts\AnonymizeStrategy;
 use Ginkelsoft\DataRetention\Models\RetentionLogEntry;
-use Ginkelsoft\DataRetention\Strategies\HashStrategy;
-use Ginkelsoft\DataRetention\Strategies\NullStrategy;
-use Ginkelsoft\DataRetention\Strategies\PlaceholderStrategy;
+use Ginkelsoft\DataRetention\Strategies\StrategyResolver;
 use Ginkelsoft\DataRetention\Support\HashChain;
 use Ginkelsoft\DataRetention\Support\RetentionConfig;
 use Illuminate\Database\Eloquent\Model;
@@ -93,44 +89,11 @@ final class ApplyRetention
     {
         foreach ($policy->anonymize as $field => $strategySpec) {
             $current = $model->getAttribute($field);
-            $replacement = $this->resolveStrategy($strategySpec)->apply($current, $field, $model);
+            $replacement = StrategyResolver::resolve($strategySpec)->apply($current, $field, $model);
             $model->setAttribute($field, $replacement);
         }
 
         $model->save();
-    }
-
-    /**
-     * Resolve a strategy id or callable to an {@see AnonymizeStrategy}.
-     *
-     * Strings are always treated as strategy ids — never as callable
-     * function names — so config entries like `'hash'` cannot
-     * accidentally invoke PHP's built-in `hash()` function.
-     */
-    private function resolveStrategy(string|callable $spec): AnonymizeStrategy
-    {
-        if (is_string($spec)) {
-            return match ($spec) {
-                'null' => new NullStrategy,
-                'hash' => new HashStrategy,
-                'placeholder' => new PlaceholderStrategy,
-                default => throw new \InvalidArgumentException(
-                    "Unknown anonymize strategy '{$spec}'. Allowed: 'null', 'hash', 'placeholder', or a callable."
-                ),
-            };
-        }
-
-        $callable = $spec instanceof Closure ? $spec : Closure::fromCallable($spec);
-
-        return new class($callable) implements AnonymizeStrategy
-        {
-            public function __construct(private readonly Closure $callable) {}
-
-            public function apply(mixed $value, string $field, Model $model): mixed
-            {
-                return ($this->callable)($value, $field, $model);
-            }
-        };
     }
 
     /**

@@ -37,6 +37,52 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Forgettable Models Registry
+    |--------------------------------------------------------------------------
+    |
+    | List the Eloquent model classes that participate in GDPR art. 17
+    | "right to be forgotten" sweeps. The `retention:forget {subject}`
+    | command iterates this list and applies each model's Forgettable
+    | policy (delete or anonymize) to records belonging to the subject.
+    |
+    | Models in this list must use the `Forgettable` trait and declare
+    | a policy via either the `#[Forgettable]` attribute or a
+    | `$forgettable` array property.
+    |
+    | A model may appear in both `models` and `forgettable.models` —
+    | retention covers time-based opruiming, forgettable covers
+    | subject-based opruiming, the two are independent.
+    |
+    */
+    'forgettable' => [
+        'models' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Exportable Models Registry
+    |--------------------------------------------------------------------------
+    |
+    | List the Eloquent model classes that participate in GDPR art. 15
+    | "subject access" exports. The `retention:export {subject}` command
+    | iterates this list and collects every record belonging to the
+    | subject across these models.
+    |
+    | Models in this list must use the `Exportable` trait, implement the
+    | `Contracts\Exportable` interface, and declare a `$exportable`
+    | property listing the fields to include in the export (explicit
+    | opt-in; auto-including all columns is unsafe).
+    |
+    | A model may appear in any combination of `models`, `forgettable.models`,
+    | and `exportable.models` — the three controls are independent.
+    |
+    */
+    'exportable' => [
+        'models' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Retention Log Signing Key
     |--------------------------------------------------------------------------
     |

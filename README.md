@@ -32,12 +32,15 @@ Hand-rolled cron scripts solve #2 at best, fail at #3 silently, and tend to drif
 ## Key Features
 
 * **Per-model retention policies** declared on the Eloquent model itself, with either a PHP `#[Retention]` attribute or a `$retention` property.
-* **Delete or anonymize** on expiry — soft-delete-aware so personal data really leaves the database.
+* **Right to be forgotten** (GDPR art. 17): the same delete / anonymize / strategy machinery driven per subject instead of per clock, with its own audit log.
+* **Subject access** (GDPR art. 15, doubles as art. 20 portability): collect every record an application holds about a single subject and render it as JSON or Markdown, read-only, with the access itself recorded in the audit chain.
+* **Delete or anonymize** on expiry or on request — soft-delete-aware so personal data really leaves the database.
 * **Pluggable anonymize strategies**: `null`, `hash`, `placeholder`, or any closure / callable you supply.
-* **Tamper-evident audit log** with a SHA-256 hash chain — every row depends on the previous one and an application secret.
-* **Dry-run mode** (`retention:run --dry-run`) so you can preview a sweep before trusting it.
-* **Chunked, queue-friendly Artisan command** designed to be scheduled daily.
-* **Privacy by design**: the audit log contains pointers (class + primary key), never the original field values.
+* **Tamper-evident audit logs** (one for retention + access, one for forgetting) with a SHA-256 hash chain — every row depends on the previous one and an application secret.
+* **Pluggable export formats** through the `Exporter` contract — JSON and Markdown out of the box, extensible without modifying the package.
+* **Dry-run mode** on the destructive commands so you can preview a sweep before trusting it.
+* **Chunked, queue-friendly Artisan commands** designed to be scheduled daily.
+* **Privacy by design**: the audit logs contain pointers (class + primary key) and an irreversible subject hash, never the original field values or subject identifiers.
 * **Backend-only**, Laravel-native, MIT-licensed, PHPStan-max, Pint-formatted, Pest-tested.
 
 ---
@@ -161,6 +164,7 @@ The `data-retention.log_secret` plays the role of a HMAC key: it lives in `.env`
 
 * **GDPR art. 5(1)(e) / AVG art. 5 lid 1 sub e** — Storage limitation. This package gives you a documented, automated mechanism to retire data and a tamper-evident record that demonstrates compliance to the supervisory authority.
 * **GDPR art. 5(2)** — Accountability. The hash chain is the evidence.
+* **GDPR art. 15 / art. 20** — Right of access and data portability. The `retention:export` command produces a structured snapshot of every Exportable record per subject.
 * **ISO 27001:2022 A.5.34 / A.8.10** — Information deletion. The audit log produces the "records of erasure" that this control requires.
 * **NEN 7510 / NEN 7513** (Dutch healthcare) — Append-only logging of data lifecycle events is compatible with NEN 7513 requirements; the log itself stores no patient data.
 
@@ -234,9 +238,11 @@ Implement `Ginkelsoft\DataRetention\Contracts\AnonymizeStrategy` if you need a r
 
 ---
 
-## Trying It Out (Demo Seeder)
+## Trying It Out (Demo Seeders)
 
-A factory + seeder ship with the package's test models so you can see the system in action immediately:
+Two factory-driven seeders ship with the package so you can see each control in action against realistic dummy data.
+
+### Time-driven retention
 
 ```bash
 php artisan db:seed --class="Ginkelsoft\\DataRetention\\Database\\Seeders\\RetentionDemoSeeder"
@@ -251,6 +257,225 @@ After the run:
 - 15 audit-log rows are written, chained, and verifiable.
 
 The factories (`Ginkelsoft\DataRetention\Database\Factories\{ClientFactory,AuditEntryFactory}`) expose `expired()`, `active()`, and `recentlyEnded()` states you can lift into your own test suite as a template for writing factories on your real models.
+
+### Subject-driven forget
+
+```bash
+php artisan db:seed --class="Ginkelsoft\\DataRetention\\Database\\Seeders\\ForgettableDemoSeeder"
+php artisan retention:forget alice-01 --dry-run
+php artisan retention:forget alice-01
+```
+
+The seeder creates three subjects across four related models:
+
+- `alice-01` — a complete record: own user row, profile, two orders, and two tickets (one reported, one assigned).
+- `bob-02` — same shape, exists to prove the sweep does not over-reach across subjects.
+- `carol-03` — has only a user row and three orders, no profile or ticket.
+
+After forgetting `alice-01`:
+
+- Her user row is deleted, her orders are deleted, her tickets are deleted.
+- Her profile is anonymized in place (`first_name` and `last_name` become `[REDACTED]`, `email` becomes a 64-character SHA-256 hash).
+- Bob and Carol are untouched.
+- Six rows land in `forget_log`, all bound to the same `subject_hash`, chained, and verifiable.
+
+The factories (`Ginkelsoft\DataRetention\Database\Factories\{ForgetUserFactory,ForgetProfileFactory,ForgetOrderFactory,ForgetTicketFactory}`) expose `withId(...)`, `forSubject(...)`, `reportedBy(...)`, and `assignedTo(...)` helper states so you can build similar fixtures for your own models.
+
+---
+
+## Right to be Forgotten
+
+Time-based retention answers "is this data old enough to remove?". GDPR art. 17 ("right to be forgotten") answers a different question: "this specific person has asked me to remove **everything** about them, today." The two controls have the same building blocks (delete vs. anonymize, per-field strategies, append-only audit log) but the trigger is different — one is the clock, the other is the subject themselves.
+
+### Declare which models hold subject data
+
+Mirror of the retention pattern: an attribute for simple cases, a property for anonymize. Models must additionally implement the `Ginkelsoft\DataRetention\Contracts\Forgettable` interface — the trait provides the default implementation, the interface gives the orchestrator the type safety it needs.
+
+```php
+use Ginkelsoft\DataRetention\Attributes\Forgettable;
+use Ginkelsoft\DataRetention\Concerns\Forgettable as ForgettableTrait;
+use Ginkelsoft\DataRetention\Contracts\Forgettable as ForgettableContract;
+
+#[Forgettable(column: 'id', action: 'delete')]
+class User extends Model implements ForgettableContract
+{
+    use ForgettableTrait;
+}
+
+#[Forgettable(column: 'user_id', action: 'delete')]
+class Order extends Model implements ForgettableContract
+{
+    use ForgettableTrait;
+}
+
+class Profile extends Model implements ForgettableContract
+{
+    use ForgettableTrait;
+
+    protected array $forgettable = [
+        'column'    => 'user_id',
+        'action'    => 'anonymize',
+        'anonymize' => [
+            'first_name' => 'placeholder',
+            'last_name'  => 'placeholder',
+            'email'      => 'hash',
+        ],
+    ];
+}
+```
+
+For complex subject mappings (subject can appear in either of two columns, polymorphic relation, etc) override the static `forSubjectQuery` method on the model. See `tests/Models/ForgetTicket.php` for an OR-across-two-columns example.
+
+### Register the models
+
+```php
+// config/data-retention.php
+'forgettable' => [
+    'models' => [
+        \App\Models\User::class,
+        \App\Models\Profile::class,
+        \App\Models\Order::class,
+    ],
+],
+```
+
+### Run the sweep
+
+```bash
+php artisan retention:forget 01HXYZ --dry-run
+php artisan retention:forget 01HXYZ
+```
+
+The first argument is the subject identifier: whatever string consistently identifies the person across your models (typically a user primary key or ULID). The orchestrator iterates every registered model and applies its policy to records linked to that subject. Idempotent: a second run finds no new records and writes no new log entries.
+
+### A separate, parallel audit log
+
+Forget actions are recorded in a separate `forget_log` table, not in `retention_log`. This is a deliberate choice. The retention chain is computed over a fixed payload schema; adding a `subject_hash` column there would change the hash of every row written after the migration, breaking verifiability of pre-existing entries. By keeping the two logs apart, each chain stays internally consistent and independently auditable.
+
+The `forget_log` rows contain `subject_hash` (an irreversible SHA-256 of the subject identifier plus `log_secret`), the source model class and primary key, the action (`forgotten_deleted` or `forgotten_anonymized`), timestamps, and the chain hashes. No subject identifier, no field values — just the proof that the person was forgotten.
+
+Verifying the chain works the same way:
+
+```php
+use Ginkelsoft\DataRetention\Support\HashChain;
+use Illuminate\Support\Facades\DB;
+
+$entries = DB::table('forget_log')->orderBy('id')->get()
+    ->map(fn ($row) => (array) $row)->all();
+
+$intact = HashChain::verify($entries, config('data-retention.log_secret'));
+```
+
+### What the forget sweep does not do
+
+- It does not cascade implicitly. Only models explicitly listed in `forgettable.models` and using the trait + contract are touched. If `Order` is forgotten but `OrderLine` is not in the list, the order lines remain — give them their own Forgettable policy if they hold personal data.
+- It does not handle backup or warehouse copies. Those need a separate procedure documented in your DPIA.
+- It does not block re-creation. If your application re-fills a profile for the same subject after a forget, that is application logic to fix, not retention logic.
+
+---
+
+## Subject Access (Inzageverzoek)
+
+The third control in this package is read-only: collect every piece of personal data the application holds about one subject and hand it over. This is GDPR art. 15 (right of access) and, when handed over in JSON, doubles as the art. 20 data-portability format. No data is changed or removed — that is what the retention and forget controls are for.
+
+### Declare which fields are part of the export
+
+Mirror of the other two patterns: an attribute for the subject column, a property for the explicit list of fields. Models implement the `Ginkelsoft\DataRetention\Contracts\Exportable` interface and use the corresponding trait. **The field list is opt-in per field**: auto-including every column is unsafe (internal flags, technical foreign keys, hashed values) so this package refuses to do it.
+
+```php
+use Ginkelsoft\DataRetention\Attributes\Exportable;
+use Ginkelsoft\DataRetention\Concerns\Exportable as ExportableTrait;
+use Ginkelsoft\DataRetention\Contracts\Exportable as ExportableContract;
+
+#[Exportable(column: 'id')]
+class User extends Model implements ExportableContract
+{
+    use ExportableTrait;
+
+    protected array $exportable = [
+        'fields' => [
+            'id'    => 'Subject identifier',
+            'email' => 'E-mailadres',
+        ],
+    ];
+}
+
+class Profile extends Model implements ExportableContract
+{
+    use ExportableTrait;
+
+    protected array $exportable = [
+        'column' => 'user_id',
+        'fields' => [
+            'first_name'    => 'Voornaam',
+            'last_name'     => 'Achternaam',
+            'email'         => ['label' => 'E-mailadres'],
+            'logged_in_at'  => [
+                'label'     => 'Aangemeld op',
+                'transform' => fn ($v) => $v?->format('Y-m-d H:i:s'),
+            ],
+            // internal_note is intentionally not listed: it stays out of the export.
+        ],
+    ];
+}
+```
+
+A model can carry **all three** policies at once (`HasRetention`, `Forgettable`, `Exportable`). When both `Forgettable` and `Exportable` are used together, PHP requires explicit trait conflict resolution because both define `forSubjectQuery`. The default implementations are functionally identical when both policies use the same subject column (the common case), so picking one with `insteadof` is enough:
+
+```php
+use Ginkelsoft\DataRetention\Concerns\Exportable;
+use Ginkelsoft\DataRetention\Concerns\Forgettable;
+
+class User extends Model implements ExportableContract, ForgettableContract
+{
+    use Exportable, Forgettable {
+        Forgettable::forSubjectQuery insteadof Exportable;
+    }
+}
+```
+
+If the two policies need different columns, override `forSubjectQuery` on the model itself instead of using `insteadof`.
+
+### Register the models
+
+```php
+// config/data-retention.php
+'exportable' => [
+    'models' => [
+        \App\Models\User::class,
+        \App\Models\Profile::class,
+    ],
+],
+```
+
+### Run the export
+
+```bash
+php artisan retention:export 01HXYZ
+php artisan retention:export 01HXYZ --format=markdown
+php artisan retention:export 01HXYZ --format=json --output=storage/exports/01HXYZ.json
+```
+
+Without `--output` the export is written to STDOUT, so it can be piped or captured. With `--output` it lands in the given file (missing intermediate directories are created). Two formats ship by default; the `Ginkelsoft\DataRetention\Contracts\Exporter` interface lets you add more (HTML, CSV, PDF) without touching the rest of the package.
+
+### Accountability without leaking data
+
+Every subject access is itself a verwerking, so we log it. One row lands in `retention_log` per model the subject had data in, with:
+
+- `action` = `subject_access_exported`
+- `retention_field` = the sentinel `subject_access` (so it filters cleanly)
+- `model_type` = the FQCN of the matched model
+- `model_id` = the irreversible `SubjectHash` of the subject (NOT the subject identifier itself)
+- `retention_period` = the matched record count (e.g. `3 records`)
+
+The retention_log hash chain stays intact: every access row links to the previous row in the chain, so the same `HashChain::verify()` call demonstrates that the access trail is untampered.
+
+### Gotchas specific to subject access
+
+- **Identity verification is your problem, not ours.** This package does not check whether the requester is actually the subject. That is application-level concern — typically a verified email round-trip, an authenticated session, or a manual KYC step before you call the command. Running `retention:export` against an unverified identifier is a data breach waiting to happen.
+- **`retention_log.model_id` carries two semantics.** For time-driven retention and right-to-be-forgotten it is the primary key of the source record. For subject access it is a SubjectHash. The `retention_field` value distinguishes them at query time. If you build dashboards on top of the log, filter by `retention_field`.
+- **The export is a snapshot.** Records created or modified after the export are obviously not in it. If the subject asks for a fresh export tomorrow, run it again — accountability comes from the per-call log row.
+- **PDF is intentionally not built-in.** Adding a PDF generator would pull in a heavy dependency for what is essentially an Exporter contract that you can implement in a project-specific way (Dompdf, mPDF, Browsershot). The JSON and Markdown defaults cover the common cases without weighing the package down.
 
 ---
 
@@ -295,11 +520,9 @@ These are intentional design choices. Read them once.
 
 ## Roadmap
 
-This package is the **first** module of a wider GinkelSoft AVG-compliance family. The following packages will share its conventions (config pattern, audit-log structure) but are **not** part of this release:
+This package covers three GDPR controls: storage limitation (art. 5(1)(e)), the right to be forgotten (art. 17), and the right of access (art. 15, doubling as art. 20 portability). The remaining members of the GinkelSoft AVG-compliance family are planned as separate packages and will share this package's conventions (config pattern, audit-log structure, hash chain):
 
 - `ginkelsoft/laravel-data-consent` — recording and revoking processing consent.
-- `ginkelsoft/laravel-data-subject-access` — automated subject-access (inzage) exports.
-- `ginkelsoft/laravel-data-right-to-be-forgotten` — provable, complete erasure across an aggregate.
 - `ginkelsoft/laravel-data-breach-registry` — datalek registration aligned with AVG art. 33–34.
 
 If you have opinions about the shape of any of these, open an issue.
