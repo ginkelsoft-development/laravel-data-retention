@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use Ginkelsoft\ComplianceCore\Support\HashChain;
 use Ginkelsoft\DataRetention\Database\Seeders\RetentionDemoSeeder;
 use Ginkelsoft\DataRetention\Models\RetentionLogEntry;
-use Ginkelsoft\DataRetention\Support\HashChain;
 use Ginkelsoft\DataRetention\Tests\Models\AuditEntry;
 use Ginkelsoft\DataRetention\Tests\Models\Client;
 use Illuminate\Support\Facades\DB;

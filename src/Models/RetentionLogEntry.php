@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention\Models;
 
-use Ginkelsoft\DataRetention\Support\HashChain;
+use Ginkelsoft\ComplianceCore\Support\HashChain;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -15,8 +15,11 @@ use Illuminate\Support\Carbon;
  *
  * Each entry forms part of a SHA-256 hash chain: the `hash` column
  * is derived from the entry's own payload, the `previous_hash`, and
- * a secret held in `config('data-retention.log_secret')`. As a
- * result, tampering with any entry invalidates every later entry.
+ * the shared compliance log secret (read via
+ * `Ginkelsoft\ComplianceCore\Config\LogSecret::value()`, which falls
+ * back to `config('data-retention.log_secret')` for upgrades from the
+ * monolithic v1.x package). Tampering with any entry invalidates
+ * every later entry.
  *
  * The model deliberately blocks `update()` and `delete()` so the
  * application itself cannot mutate the audit trail through Eloquent.

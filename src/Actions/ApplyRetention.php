@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention\Actions;
 
+use Ginkelsoft\ComplianceCore\Config\LogSecret;
+use Ginkelsoft\ComplianceCore\Strategies\StrategyResolver;
+use Ginkelsoft\ComplianceCore\Support\HashChain;
 use Ginkelsoft\DataRetention\Models\RetentionLogEntry;
-use Ginkelsoft\DataRetention\Strategies\StrategyResolver;
-use Ginkelsoft\DataRetention\Support\HashChain;
 use Ginkelsoft\DataRetention\Support\RetentionConfig;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -134,11 +135,10 @@ final class ApplyRetention
             'performed_at' => $performedAt->utc()->format('Y-m-d H:i:s'),
         ];
 
-        $secret = config('data-retention.log_secret');
         $hash = HashChain::compute(
             $payload,
             $previousHash,
-            is_string($secret) ? $secret : '',
+            LogSecret::value(),
         );
 
         /** @var RetentionLogEntry $entry */

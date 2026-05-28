@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRetention\Tests;
 
+use Ginkelsoft\ComplianceCore\ComplianceCoreServiceProvider;
 use Ginkelsoft\DataRetention\DataRetentionServiceProvider;
 use Illuminate\Foundation\Application;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -22,7 +23,10 @@ abstract class TestCase extends Orchestra
      */
     protected function getPackageProviders($app): array
     {
-        return [DataRetentionServiceProvider::class];
+        return [
+            ComplianceCoreServiceProvider::class,
+            DataRetentionServiceProvider::class,
+        ];
     }
 
     /**
@@ -39,7 +43,7 @@ abstract class TestCase extends Orchestra
             'prefix' => '',
         ]);
 
-        $app['config']->set('data-retention.log_secret', 'test-log-secret');
+        $app['config']->set('compliance.log_secret', 'test-log-secret');
     }
 
     /**

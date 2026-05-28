@@ -7,12 +7,18 @@ declare(strict_types=1);
  * Ginkelsoft Laravel Data Retention - Configuration
  * -----------------------------------------------------------------------------
  *
- * This configuration file controls how the data-retention system enforces
- * GDPR / AVG storage-limitation rules (art. 5(1)(e)) on Eloquent models.
+ * This configuration file controls the time-driven retention sweep:
+ * which models are processed, whether soft-deleted rows are included,
+ * and the chunk size used when iterating large tables.
  *
- * Per-model retention rules are declared directly on the model itself
- * (via the `HasRetention` trait, the `#[Retention]` attribute, or a
- * `$retention` property). This file holds package-wide defaults.
+ * The shared compliance signing secret (`log_secret`) and the default
+ * placeholder values for the anonymize strategies live in the
+ * `compliance` config provided by `ginkelsoft/laravel-compliance-core`.
+ * For installations upgrading from the monolithic v1.x package, both
+ * the `data-retention.log_secret` env var and the legacy
+ * `data-retention.placeholders.*` keys remain readable via core's
+ * `LogSecret` / `PlaceholderConfig` helpers, so no env changes are
+ * required at upgrade time.
  */
 
 return [
@@ -37,67 +43,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Forgettable Models Registry
-    |--------------------------------------------------------------------------
-    |
-    | List the Eloquent model classes that participate in GDPR art. 17
-    | "right to be forgotten" sweeps. The `retention:forget {subject}`
-    | command iterates this list and applies each model's Forgettable
-    | policy (delete or anonymize) to records belonging to the subject.
-    |
-    | Models in this list must use the `Forgettable` trait and declare
-    | a policy via either the `#[Forgettable]` attribute or a
-    | `$forgettable` array property.
-    |
-    | A model may appear in both `models` and `forgettable.models` —
-    | retention covers time-based opruiming, forgettable covers
-    | subject-based opruiming, the two are independent.
-    |
-    */
-    'forgettable' => [
-        'models' => [],
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Exportable Models Registry
-    |--------------------------------------------------------------------------
-    |
-    | List the Eloquent model classes that participate in GDPR art. 15
-    | "subject access" exports. The `retention:export {subject}` command
-    | iterates this list and collects every record belonging to the
-    | subject across these models.
-    |
-    | Models in this list must use the `Exportable` trait, implement the
-    | `Contracts\Exportable` interface, and declare a `$exportable`
-    | property listing the fields to include in the export (explicit
-    | opt-in; auto-including all columns is unsafe).
-    |
-    | A model may appear in any combination of `models`, `forgettable.models`,
-    | and `exportable.models` — the three controls are independent.
-    |
-    */
-    'exportable' => [
-        'models' => [],
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Retention Log Signing Key
-    |--------------------------------------------------------------------------
-    |
-    | The audit log is tamper-evident: each entry contains a SHA-256 hash
-    | that includes the previous entry's hash. This optional secret is mixed
-    | into every hash so an attacker who can write to the database but does
-    | not know the secret cannot forge a consistent chain.
-    |
-    | Generate one with:  openssl rand -base64 32
-    |
-    */
-    'log_secret' => env('DATA_RETENTION_LOG_SECRET', ''),
-
-    /*
-    |--------------------------------------------------------------------------
     | Include Soft-Deleted Records
     |--------------------------------------------------------------------------
     |
@@ -119,29 +64,4 @@ return [
     |
     */
     'chunk_size' => 500,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Anonymization Placeholders
-    |--------------------------------------------------------------------------
-    |
-    | Default placeholder values used by PlaceholderStrategy when no explicit
-    | value is configured on a field.
-    |
-    */
-    'placeholders' => [
-        'string' => '[REDACTED]',
-        'email' => 'redacted@example.invalid',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Debug Logging
-    |--------------------------------------------------------------------------
-    |
-    | Emit additional logger() output during retention runs. Useful while
-    | rolling out the package; recommended off in production.
-    |
-    */
-    'debug' => env('DATA_RETENTION_DEBUG', false),
 ];

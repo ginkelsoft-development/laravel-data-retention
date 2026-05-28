@@ -7,10 +7,13 @@ opening a pull request.
 
 ## Ground rules
 
-- **Scope first.** This package only handles storage limitation. Consent,
-  subject-access requests, the right to be forgotten, and breach registration
-  belong in sibling packages (see the Roadmap section of the README). Pull
-  requests that grow the scope of this package will be closed politely.
+- **Scope first.** This package handles storage limitation (GDPR
+  art. 5(1)(e)) only. The other AVG controls live in sibling packages
+  (`laravel-data-right-to-be-forgotten`, `laravel-data-subject-access`,
+  `laravel-data-consent`, `laravel-data-breach-registry`); shared
+  primitives live in `laravel-compliance-core`. Pull requests that
+  broaden the scope of this specific package beyond storage limitation
+  will be closed politely — they belong in the relevant sibling.
 - **Compliance is a design constraint, not a feature.** Every change must keep
   the audit log tamper-evident and free of personal data. If your patch could
   break either invariant, it needs a Pest test that proves it does not.

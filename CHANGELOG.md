@@ -4,7 +4,51 @@ All notable changes to `ginkelsoft/laravel-data-retention` are documented in thi
 file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [Unreleased] — 2.0.0
+
+### Changed (BREAKING)
+
+- Split the package into the GinkelSoft compliance family. This package
+  now contains **only** the storage-limitation (GDPR art. 5(1)(e))
+  control. The other four controls that v1.x bundled live in their own
+  packages:
+  - `ginkelsoft/laravel-data-right-to-be-forgotten` (art. 17)
+  - `ginkelsoft/laravel-data-subject-access` (art. 15 + 20)
+  - `ginkelsoft/laravel-data-consent` (art. 6(1)(a) + 7)
+  - `ginkelsoft/laravel-data-breach-registry` (art. 33 + 34)
+  - `ginkelsoft/laravel-compliance-hub` (umbrella, installs the whole family)
+- Shared primitives (HashChain, SubjectHash, anonymize strategies,
+  AnonymizeStrategy contract) moved to `ginkelsoft/laravel-compliance-core`.
+  Imports change from `Ginkelsoft\DataRetention\Support\HashChain` to
+  `Ginkelsoft\ComplianceCore\Support\HashChain`, etc.
+- Shared signing secret moved to `config('compliance.log_secret')` (env
+  `COMPLIANCE_LOG_SECRET`). The legacy `data-retention.log_secret` /
+  `DATA_RETENTION_LOG_SECRET` keep working via core's `LogSecret`
+  fallback helper, so existing hash chains in `retention_log` keep
+  verifying without env changes.
+- `retention_log` table schema is unchanged and hash chains are
+  byte-identical to v1.x. A pinned-fixture regression test in
+  `laravel-compliance-core` enforces this.
+
+### Removed
+
+- `Forgettable` attribute / trait / contract — moved to
+  `ginkelsoft/laravel-data-right-to-be-forgotten`.
+- `Exportable` attribute / trait / contract, `Exporter` contract,
+  JSON + Markdown exporters — moved to
+  `ginkelsoft/laravel-data-subject-access`.
+- `RecordConsent`, `ConsentStatus`, `ConsentEntry`, consent commands —
+  moved to `ginkelsoft/laravel-data-consent`.
+- `BreachRegistry`, `BreachDeadlines`, breach models, breach commands —
+  moved to `ginkelsoft/laravel-data-breach-registry`.
+- The `retention:forget`, `retention:export`, `retention:consent:*`, and
+  `retention:breach:*` commands are no longer registered by this
+  package; they ship with their respective packages.
+
+See [UPGRADE.md](https://github.com/ginkelsoft-development/laravel-compliance-core/blob/development/UPGRADE.md)
+in `laravel-compliance-core` for the full upgrade path.
+
+## [1.0.0]
 
 ### Added
 
