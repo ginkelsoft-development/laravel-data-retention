@@ -64,6 +64,12 @@ jobs:
           extensions: mbstring, pdo, sqlite, bcmath
           coverage: none
 
+      - name: Checkout sibling packages
+        run: |
+          cd ..
+          git clone --depth 1 --branch development \
+            https://github.com/ginkelsoft-development/laravel-compliance-core.git
+
       - name: Install dependencies
         run: |
           composer require "illuminate/support:${{ matrix.laravel }}" \
@@ -87,6 +93,12 @@ jobs:
           php-version: 8.3
           coverage: none
 
+      - name: Checkout sibling packages
+        run: |
+          cd ..
+          git clone --depth 1 --branch development \
+            https://github.com/ginkelsoft-development/laravel-compliance-core.git
+
       - name: Install dependencies
         run: composer update --prefer-dist --no-interaction
 
@@ -104,6 +116,12 @@ jobs:
         with:
           php-version: 8.3
           coverage: none
+
+      - name: Checkout sibling packages
+        run: |
+          cd ..
+          git clone --depth 1 --branch development \
+            https://github.com/ginkelsoft-development/laravel-compliance-core.git
 
       - name: Install dependencies
         run: composer update --prefer-dist --no-interaction
